@@ -41,7 +41,7 @@ def install(target, update=False):
         manifest = target / '.portable-memory-install.json'
         if not update:
             raise ValueError('Skill already exists; rerun with --update for an unmodified managed installation')
-        if not manifest.is_file() or json.loads(manifest.read_text()) != hashes(target):
+        if not manifest.is_file() or json.loads(manifest.read_text(encoding='utf-8')) != hashes(target):
             raise ValueError('Existing Skill has local changes or is unmanaged; preserve it and choose another target')
     target.parent.mkdir(parents=True, exist_ok=True)
     token = uuid.uuid4().hex
@@ -85,4 +85,7 @@ def main():
 
 
 if __name__ == '__main__':
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, 'reconfigure'):
+            stream.reconfigure(encoding='utf-8')
     sys.exit(main())

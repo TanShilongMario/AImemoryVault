@@ -11,7 +11,7 @@ SOURCE = ROOT / 'skills' / 'portable-memory'
 
 def package(destination):
     destination.mkdir(parents=True, exist_ok=True)
-    archive = destination / 'portable-memory-v0.3.0.zip'
+    archive = destination / 'portable-memory-v0.3.1.zip'
     with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as output:
         for path in sorted(SOURCE.rglob('*')):
             if path.is_file() and '__pycache__' not in path.parts and path.suffix != '.pyc':

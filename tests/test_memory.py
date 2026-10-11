@@ -66,11 +66,11 @@ class MemoryTests(unittest.TestCase):
     def test_init_is_idempotent_and_preserves_existing_data(self):
         profile = self.write('PROFILE.md', markdown('Existing user context'))
         self.silent(m.initialize, self.vault, self.config)
-        self.assertIn('Existing user context', profile.read_text())
+        self.assertIn('Existing user context', profile.read_text(encoding='utf-8'))
         self.assertFalse(self.silent(m.doctor, self.vault))
-        review = m.metadata((self.vault / 'CURRENT.md').read_text())['review_after']
+        review = m.metadata((self.vault / 'CURRENT.md').read_text(encoding='utf-8'))['review_after']
         self.assertEqual(date.fromisoformat(review), date.today() + timedelta(days=14))
-        self.assertEqual(json.loads(self.config.read_text())['vault'], str(self.vault))
+        self.assertEqual(json.loads(self.config.read_text(encoding='utf-8'))['vault'], str(self.vault))
 
     def test_enclosing_public_repository_requires_private_exclusion(self):
         outer = self.base / 'toolkit'
@@ -100,7 +100,7 @@ class MemoryTests(unittest.TestCase):
             self.assertIn(path.relative_to(self.vault).as_posix(), names)
         self.assertNotIn('projects/old.md', names)
         self.silent(m.export, self.vault, 30)
-        snapshot = next((self.vault / 'exports').glob('*.md')).read_text()
+        snapshot = next((self.vault / 'exports').glob('*.md')).read_text(encoding='utf-8')
         for omitted in ('PRIVATE PROJECT TEXT', 'INDEX PRIVATE NAME', 'Unverified candidate', 'Raw source should stay out', 'projects/private.md'):
             self.assertNotIn(omitted, snapshot)
         self.assertIn('status: unresolved', snapshot)
@@ -119,7 +119,7 @@ class MemoryTests(unittest.TestCase):
         self.write('PROFILE.md', markdown('Source directory: /Users/example/Documents/work\n[Secret project](projects/private.md)'))
         self.write('projects/private.md', markdown('Private', share='false'))
         self.silent(m.export, self.vault, 30)
-        body = next((self.vault / 'exports').glob('*.md')).read_text()
+        body = next((self.vault / 'exports').glob('*.md')).read_text(encoding='utf-8')
         self.assertNotIn('/Users/example', body)
         self.assertNotIn('Secret project', body)
         self.assertNotIn('projects/private.md', body)
@@ -131,7 +131,7 @@ class MemoryTests(unittest.TestCase):
         self.silent(m.stage_import, self.vault, source)
         self.assertEqual(before, m.digest(self.vault / 'PROFILE.md'))
         staged = next((self.vault / 'inbox').glob('import-*.md'))
-        self.assertIn('kind: candidate', staged.read_text())
+        self.assertIn('kind: candidate', staged.read_text(encoding='utf-8'))
         self.assertEqual(m.git(self.vault, 'check-ignore', '-q', str(staged), check=False).returncode, 0)
 
     def test_merge_preserves_unselected_projects_and_rejects_stale_hash(self):
@@ -140,18 +140,18 @@ class MemoryTests(unittest.TestCase):
         plan = self.plan([self.change('PROFILE.md', markdown('User correction'))])
         self.silent(m.apply_plan, self.vault, plan)
         self.assertEqual(old_hash, m.digest(old))
-        self.assertIn('User correction', (self.vault / 'PROFILE.md').read_text())
+        self.assertIn('User correction', (self.vault / 'PROFILE.md').read_text(encoding='utf-8'))
         with self.assertRaisesRegex(ValueError, 'changed since review'):
             self.silent(m.apply_plan, self.vault, plan)
         self.assertEqual(len(list((self.vault / 'decisions').glob('*.md'))), 1)
 
     def test_merge_preflights_every_change_and_rolls_back_write_failure(self):
-        original = (self.vault / 'PROFILE.md').read_text()
+        original = (self.vault / 'PROFILE.md').read_text(encoding='utf-8')
         bad = self.plan([self.change('PROFILE.md', markdown('Should not be applied')),
                          {'path': '../outside.md', 'base_sha256': None, 'content': markdown('Outside'), 'reason': 'No'}])
         with self.assertRaises(ValueError):
             self.silent(m.apply_plan, self.vault, bad)
-        self.assertEqual(original, (self.vault / 'PROFILE.md').read_text())
+        self.assertEqual(original, (self.vault / 'PROFILE.md').read_text(encoding='utf-8'))
         plan = self.plan([self.change('PROFILE.md', markdown('New profile')),
                           self.change('projects/new.md', markdown('New project'))])
         real_atomic = m.atomic_text
@@ -162,12 +162,12 @@ class MemoryTests(unittest.TestCase):
         with patch.object(m, 'atomic_text', side_effect=fail_once):
             with self.assertRaisesRegex(OSError, 'disk failure'):
                 self.silent(m.apply_plan, self.vault, plan)
-        self.assertEqual(original, (self.vault / 'PROFILE.md').read_text())
+        self.assertEqual(original, (self.vault / 'PROFILE.md').read_text(encoding='utf-8'))
         self.assertFalse((self.vault / 'projects/new.md').exists())
         self.assertFalse((self.vault / '.memory.lock').exists())
 
     def test_failed_rollback_preserves_recovery_backups(self):
-        original = (self.vault / 'PROFILE.md').read_text()
+        original = (self.vault / 'PROFILE.md').read_text(encoding='utf-8')
         plan = self.plan([self.change('PROFILE.md', markdown('New profile')),
                           self.change('projects/new.md', markdown('New project'))])
         real_atomic = m.atomic_text
@@ -184,8 +184,8 @@ class MemoryTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Rollback incomplete'):
                 self.silent(m.apply_plan, self.vault, plan)
         recovery = next((self.vault / '.transactions').iterdir())
-        self.assertEqual((recovery / '0.before.md').read_text(), original)
-        self.assertEqual(json.loads((recovery / 'manifest.json').read_text())[0]['path'], 'PROFILE.md')
+        self.assertEqual((recovery / '0.before.md').read_text(encoding='utf-8'), original)
+        self.assertEqual(json.loads((recovery / 'manifest.json').read_text(encoding='utf-8'))[0]['path'], 'PROFILE.md')
         with self.assertRaisesRegex(ValueError, 'Pending transaction backups'):
             self.silent(m.export, self.vault, 30)
 
@@ -204,7 +204,7 @@ class MemoryTests(unittest.TestCase):
         lock.write_text('Another process owns this lock')
         with self.assertRaisesRegex(ValueError, 'locked'):
             self.silent(m.export, self.vault, 30)
-        self.assertEqual(lock.read_text(), 'Another process owns this lock')
+        self.assertEqual(lock.read_text(encoding='utf-8'), 'Another process owns this lock')
 
     def test_credentials_and_unknown_schema_do_not_enter_exports_or_imports(self):
         self.write('PROFILE.md', markdown('ghp_' + 'X' * 36))
@@ -244,6 +244,26 @@ class MemoryTests(unittest.TestCase):
         self.assertEqual(m.git(self.vault, 'diff', '--cached', '--name-only').stdout, '')
         self.assertTrue((self.vault / 'PROFILE.md').is_file())
 
+    def test_unicode_paths_and_config_survive_checkpoints(self):
+        vault = self.base / '中文设备' / '记忆库'
+        config = self.base / '中文设备配置.json'
+        self.silent(m.initialize, vault, config)
+        self.silent(m.initialize, vault, config)
+        self.assertTrue(m.independent(vault))
+        m.git(vault, 'config', 'user.name', 'Memory Test')
+        m.git(vault, 'config', 'user.email', 'memory-test@example.invalid')
+        topic = vault / 'projects/旅行计划.md'
+        topic.write_text(markdown('中文项目与可靠记忆'), encoding='utf-8')
+        self.silent(m.checkpoint, vault, 'Unicode snapshot')
+        tracked = m.git(vault, 'ls-files', '-z').stdout.split('\0')
+        self.assertIn('projects/旅行计划.md', tracked)
+        topic.write_text(markdown('新的中文进度'), encoding='utf-8')
+        self.silent(m.checkpoint, vault, 'Unicode correction')
+        self.assertEqual(m.git(vault, 'status', '--porcelain').stdout, '')
+        self.silent(m.export, vault, 30)
+        snapshot = next((vault / 'exports').glob('*.md')).read_text(encoding='utf-8')
+        self.assertIn('新的中文进度', snapshot)
+
     def test_public_github_remote_is_rejected(self):
         response = subprocess.CompletedProcess([], 0, stdout='false\n', stderr='')
         with patch.object(m, 'run', return_value=response):
@@ -262,21 +282,21 @@ class MemoryTests(unittest.TestCase):
         m.git(second, 'config', 'user.name', 'Memory Test')
         m.git(second, 'config', 'user.email', 'memory-test@example.invalid')
         self.silent(m.configure_remote, second, str(remote), True)
-        (second / 'PROFILE.md').write_text(markdown('Correction from second device'))
+        (second / 'PROFILE.md').write_text(markdown('Correction from second device'), encoding='utf-8')
         self.silent(m.checkpoint, second, 'Correction')
         self.silent(m.sync, second)
         self.silent(m.sync, self.vault)
-        self.assertIn('Correction from second device', (self.vault / 'PROFILE.md').read_text())
+        self.assertIn('Correction from second device', (self.vault / 'PROFILE.md').read_text(encoding='utf-8'))
         self.write('PROFILE.md', markdown('First device independent edit'))
         self.silent(m.checkpoint, self.vault, 'First edit')
         head = m.git(self.vault, 'rev-parse', 'HEAD').stdout
-        (second / 'PROFILE.md').write_text(markdown('Second device independent edit'))
+        (second / 'PROFILE.md').write_text(markdown('Second device independent edit'), encoding='utf-8')
         self.silent(m.checkpoint, second, 'Second edit')
         self.silent(m.sync, second)
         with self.assertRaisesRegex(ValueError, 'diverged'):
             self.silent(m.sync, self.vault)
         self.assertEqual(head, m.git(self.vault, 'rev-parse', 'HEAD').stdout)
-        self.assertIn('First device independent edit', (self.vault / 'PROFILE.md').read_text())
+        self.assertIn('First device independent edit', (self.vault / 'PROFILE.md').read_text(encoding='utf-8'))
 
     def test_installed_skill_runs_without_source_repository(self):
         target = self.base / 'installed/portable-memory'
@@ -284,14 +304,14 @@ class MemoryTests(unittest.TestCase):
         copy_vault = self.base / 'new-machine-memory'
         result = subprocess.run([sys.executable, str(target / 'scripts/memory.py'), '--config',
                                  str(self.base / 'new-config.json'), '--vault', str(copy_vault), 'init'],
-                                cwd=self.base, capture_output=True, text=True)
+                                cwd=self.base, capture_output=True, text=True, encoding='utf-8')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue((copy_vault / 'LONG_TERM.md').is_file())
         self.silent(installer.install, target)
         (target / 'SKILL.md').write_text('Local custom instructions')
         with self.assertRaisesRegex(ValueError, 'local changes'):
             self.silent(installer.install, target, True)
-        self.assertEqual((target / 'SKILL.md').read_text(), 'Local custom instructions')
+        self.assertEqual((target / 'SKILL.md').read_text(encoding='utf-8'), 'Local custom instructions')
 
     def test_connect_preserves_rules_and_keeps_device_path_out_of_shared_files(self):
         project = self.base / 'project'
@@ -300,9 +320,9 @@ class MemoryTests(unittest.TestCase):
         entry = project / 'AGENTS.md'
         entry.write_text('# Existing project rules\n\nKeep my build settings.\n')
         self.silent(connector.connect, self.vault, project, 'codex')
-        first = entry.read_text()
+        first = entry.read_text(encoding='utf-8')
         self.silent(connector.connect, self.vault, project, 'codex')
-        self.assertEqual(first, entry.read_text())
+        self.assertEqual(first, entry.read_text(encoding='utf-8'))
         self.assertIn('Keep my build settings.', first)
         self.assertNotIn(str(self.vault), first)
         self.assertEqual(m.git(project, 'check-ignore', '-q', '.portable-memory.local.json', check=False).returncode, 0)

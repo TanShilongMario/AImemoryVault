@@ -24,7 +24,7 @@ LOCAL_PATH = re.compile(r'(?:/(?:Users|home)/[^\s<>\)\]"\']+|[A-Za-z]:[\\/](?:Us
 
 
 def run(*args, cwd=None, check=True):
-    result = subprocess.run(list(args), cwd=cwd, capture_output=True, text=True)
+    result = subprocess.run(list(args), cwd=cwd, capture_output=True, text=True, encoding='utf-8', errors='replace')
     if check and result.returncode:
         raise ValueError(result.stderr.strip() or result.stdout.strip() or 'Command failed')
     return result
@@ -160,13 +160,13 @@ def initialize(vault, config):
                 atomic_text(target, body)
         ignore = inside(vault, '.gitignore')
         existing = ignore.read_text(encoding='utf-8') if ignore.exists() else ''
-        additions = [line for line in (TEMPLATES / 'vault.gitignore').read_text().splitlines()
+        additions = [line for line in (TEMPLATES / 'vault.gitignore').read_text(encoding='utf-8').splitlines()
                      if line and line not in existing.splitlines()]
         if additions:
             atomic_text(ignore, existing.rstrip() + '\n' + '\n'.join(additions) + '\n')
         for name in ('projects', 'conversations', 'decisions', 'inbox', 'sources', 'exports', 'archive'):
             inside(vault, name).mkdir(exist_ok=True)
-        old = json.loads(config.read_text()) if config.exists() else {}
+        old = json.loads(config.read_text(encoding='utf-8')) if config.exists() else {}
         old.update({'schema_version': '0.3', 'vault': str(vault),
                     'recent_days': old.get('recent_days', 30)})
         atomic_text(config, json.dumps(old, ensure_ascii=False, indent=2) + '\n')
@@ -418,8 +418,8 @@ def checkpoint(vault, message):
         for key in ('user.name', 'user.email'):
             if not git(vault, 'config', '--get', key, check=False).stdout.strip():
                 raise ValueError(f'Missing actual Git author {key}')
-        changed = set(git(vault, 'diff', '--name-only').stdout.splitlines())
-        changed.update(git(vault, 'ls-files', '--others', '--exclude-standard').stdout.splitlines())
+        changed = set(filter(None, git(vault, 'diff', '--name-only', '-z').stdout.split('\0')))
+        changed.update(filter(None, git(vault, 'ls-files', '--others', '--exclude-standard', '-z').stdout.split('\0')))
         paths = sorted(relative for relative in changed if canonical_path(relative))
         for relative in paths:
             path = inside(vault, relative)
@@ -566,4 +566,7 @@ def main(argv=None):
 
 
 if __name__ == '__main__':
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, 'reconfigure'):
+            stream.reconfigure(encoding='utf-8')
     sys.exit(main())

@@ -23,7 +23,7 @@ def connect(vault, project, agent):
         if not path.resolve().is_relative_to(project):
             raise ValueError('Project entry symlink leaves the selected project')
     tracked = subprocess.run(['git', '-C', str(project), 'ls-files', '--', '.portable-memory.local.json'],
-                             capture_output=True, text=True)
+                             capture_output=True, text=True, encoding='utf-8', errors='replace')
     if tracked.stdout.strip():
         raise ValueError('Device configuration is tracked; remove it from shared Git before connecting')
     text = rule.read_text(encoding='utf-8') if rule.exists() else ''
@@ -67,4 +67,7 @@ def main():
 
 
 if __name__ == '__main__':
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, 'reconfigure'):
+            stream.reconfigure(encoding='utf-8')
     sys.exit(main())
