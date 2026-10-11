@@ -1,0 +1,11 @@
+/vault/
+/local/
+/dist/
+/.portable-memory.local.json
+__pycache__/
+*.py[cod]
+.DS_Store
+.env
+.env.*
+*.key
+*.pem

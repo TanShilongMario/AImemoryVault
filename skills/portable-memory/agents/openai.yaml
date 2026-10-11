@@ -1,0 +1,4 @@
+interface:
+  display_name: "Portable Memory"
+  short_description: "在不同设备和 Agent 间导入导出可靠记忆，并管理独立私人 Git 快照"
+  default_prompt: "使用 $portable-memory 配置我的记忆库，或导入、导出跨 Agent 记忆。"

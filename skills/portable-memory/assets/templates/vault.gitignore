@@ -1,0 +1,16 @@
+/sources/*
+!/sources/README.md
+/exports/*
+!/exports/README.md
+/inbox/import-*.md
+/.memory.lock
+/.transactions/
+/PORTABLE_MEMORY.md
+/PORTABLE_MEMORY.manifest.json
+*.tmp
+.DS_Store
+.env
+.env.*
+*.key
+*.pem
+__pycache__/
